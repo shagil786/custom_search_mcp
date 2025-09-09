@@ -73,14 +73,44 @@ async def google_search(
     }
 
 # Wire the MCP server into FastAPI (HTTP transport)
+from fastapi import Request
+
 app = FastAPI(title="Google Search MCP Server")
 
-# Optional health check route
 @app.get("/")
 def health():
     return {"ok": True, "server": "google-search-mcp"}
 
-# Expose google_search via FastAPI POST
-@app.post("/google-search")
-async def google_search_api(payload: dict):
-    return await google_search(**payload)
+@app.get("/tools")
+def list_tools():
+    return {
+        "tools": [
+            {
+                "name": "google.search",
+                "description": "Search the web via Google Programmable Search (CSE). Returns top organic results with title, link, snippet.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query text"},
+                        "num": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5, "description": "Number of results (1-10)"},
+                        "start": {"type": "integer", "minimum": 1, "default": 1, "description": "Start index for pagination (1-based)"},
+                        "safe": {"type": "string", "enum": ["off", "active"], "default": "off", "description": "SafeSearch level"},
+                        "lr": {"type": "string", "description": "Restrict results to a language (e.g., 'lang_en')"},
+                        "gl": {"type": "string", "description": "Geolocation code (e.g., 'us', 'in')"},
+                        "cr": {"type": "string", "description": "Country restrict, e.g., 'countryIN'"},
+                        "siteSearch": {"type": "string", "description": "Limit results to a specific domain"},
+                    },
+                    "required": ["query"]
+                }
+            }
+        ]
+    }
+
+@app.post("/call-tool")
+async def call_tool(request: Request):
+    payload = await request.json()
+    tool_name = payload.get("tool")
+    params = payload.get("params", {})
+    if tool_name == "google.search":
+        return await google_search(**params)
+    return {"error": "Tool not found"}
