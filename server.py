@@ -1,4 +1,7 @@
 import os
+import sys
+print("Python executable:", sys.executable)
+print("sys.path:", sys.path)
 import json
 from typing import Optional, List, Dict, Any
 
@@ -6,8 +9,7 @@ import httpx
 from fastapi import FastAPI
 from dotenv import load_dotenv
 
-from mcp.server.fastapi import FastAPIServer
-from mcp.server import Server, Tool
+from mcp.server import Server
 
 load_dotenv()
 
@@ -21,24 +23,6 @@ if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
 mcp = Server("google-search-mcp")
 
 # Register a single tool: google.search
-@mcp.tool(
-    name="google.search",
-    description="Search the web via Google Programmable Search (CSE). Returns top organic results with title, link, snippet.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "query": {"type": "string", "description": "Search query text"},
-            "num": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5, "description": "Number of results (1-10)"},
-            "start": {"type": "integer", "minimum": 1, "default": 1, "description": "Start index for pagination (1-based)"},
-            "safe": {"type": "string", "enum": ["off", "active"], "default": "off", "description": "SafeSearch level"},
-            "lr": {"type": "string", "description": "Restrict results to a language (e.g., 'lang_en')"},
-            "gl": {"type": "string", "description": "Geolocation code (e.g., 'us', 'in')"},
-            "cr": {"type": "string", "description": "Country restrict, e.g., 'countryIN'"},
-            "siteSearch": {"type": "string", "description": "Limit results to a specific domain"},
-        },
-        "required": ["query"]
-    }
-)
 async def google_search(
     query: str,
     num: int = 5,
@@ -90,9 +74,13 @@ async def google_search(
 
 # Wire the MCP server into FastAPI (HTTP transport)
 app = FastAPI(title="Google Search MCP Server")
-fastapi_server = FastAPIServer(mcp, app)
 
 # Optional health check route
 @app.get("/")
 def health():
     return {"ok": True, "server": "google-search-mcp"}
+
+# Expose google_search via FastAPI POST
+@app.post("/google-search")
+async def google_search_api(payload: dict):
+    return await google_search(**payload)
